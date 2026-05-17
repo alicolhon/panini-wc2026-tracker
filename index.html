@@ -182,6 +182,22 @@ body{font-family:'Barlow',sans-serif;background:var(--bg-deep);color:var(--text-
 .toast.show{transform:translateY(0);opacity:1}
 .toast.gold-toast{border-color:var(--gold);color:var(--gold)}
 
+/* ─── BACK BUTTON ──────────────────────────────────── */
+.btn-back{display:none;align-items:center;gap:.35rem;background:var(--bg-elevated);border:1px solid var(--border);border-radius:6px;padding:.3rem .7rem;color:var(--text-secondary);font-family:'Barlow Condensed',sans-serif;font-size:.8rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;cursor:pointer;transition:all .15s;white-space:nowrap;flex-shrink:0}
+.btn-back:hover{border-color:var(--gold);color:var(--gold)}
+.btn-back.visible{display:flex}
+
+/* ─── HAMBURGER ─────────────────────────────────────── */
+.hamburger-btn{display:none;align-items:center;justify-content:center;background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:1.35rem;padding:.2rem .3rem;flex-shrink:0;line-height:1;transition:color .15s}
+.hamburger-btn:hover{color:var(--text-primary)}
+
+/* ─── SIDEBAR OVERLAY ───────────────────────────────── */
+#sidebar-overlay{position:fixed;inset:0;z-index:25;background:rgba(0,0,0,.55);pointer-events:none;opacity:0;transition:opacity .3s}
+#sidebar-overlay.show{pointer-events:auto;opacity:1}
+
+/* ─── TEAM TOP ROW ──────────────────────────────────── */
+.team-top-row{display:grid;grid-template-columns:100px 1fr 100px;gap:.65rem;margin-bottom:.75rem;align-items:start}
+
 @media(max-width:900px){
   #sidebar{width:220px}
   #main{margin-left:220px}
@@ -189,11 +205,33 @@ body{font-family:'Barlow',sans-serif;background:var(--bg-deep);color:var(--text-
   .main-header{padding:1.25rem 1.25rem 1rem}
 }
 @media(max-width:640px){
+  /* auth */
   #auth-screen{flex-direction:column}
   .auth-brand{min-height:200px;flex:0}
   .auth-panel{width:100%;min-height:auto;padding:2rem 1.5rem}
-  #sidebar{transform:translateX(-100%)}
+  /* sidebar: slide-in overlay */
+  #sidebar{transform:translateX(-100%);transition:transform .3s cubic-bezier(.4,0,.2,1);z-index:30;box-shadow:none}
+  #sidebar.open{transform:translateX(0);box-shadow:6px 0 48px rgba(0,0,0,.75)}
+  /* main: full width */
   #main{margin-left:0}
+  /* hamburger visible */
+  .hamburger-btn{display:flex}
+  /* compact header */
+  .main-header{padding:.85rem 1rem .7rem}
+  .main-hdr-top{margin-bottom:.5rem}
+  .sect-title{font-size:1.55rem}
+  /* hide pills — redundant on small screens */
+  .hdr-pills{display:none}
+  /* content */
+  .content-area{padding:.9rem .9rem 5rem}
+  /* sticker grid: tighter cells */
+  .sticker-grid{grid-template-columns:repeat(auto-fill,minmax(68px,1fr));gap:.38rem}
+  /* overview: 2-up min */
+  .overview-cards{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+  /* team top row */
+  .team-top-row{grid-template-columns:76px 1fr 76px;gap:.4rem}
+  /* toast above browser UI */
+  .toast{bottom:4rem;right:.9rem;left:.9rem;text-align:center}
 }
 </style>
 </head>
@@ -258,13 +296,18 @@ body{font-family:'Barlow',sans-serif;background:var(--bg-deep);color:var(--text-
     <div class="sidebar-nav" id="sidebar-nav"></div>
   </div>
 
+  <!-- SIDEBAR OVERLAY (mobile) -->
+  <div id="sidebar-overlay" onclick="closeSidebar()"></div>
+
   <!-- MAIN CONTENT -->
   <div id="main">
     <div class="main-header">
       <div class="main-hdr-top">
         <div class="section-title-row">
+          <button class="hamburger-btn" id="hamburger-btn" onclick="toggleSidebar()" aria-label="Menu">&#9776;</button>
+          <button class="btn-back" id="btn-back" onclick="navigate('overview')" aria-label="Back to overview">&#8592; Back</button>
           <div class="sect-flag" id="hdr-flag">🌍</div>
-          <div>
+          <div style="min-width:0">
             <div class="sect-title" id="hdr-title">My Album</div>
             <div class="sect-sub" id="hdr-sub">FIFA WORLD CUP 2026</div>
           </div>
@@ -717,9 +760,20 @@ function toggleNavSect(hdr) {
 
 function navigate(view) {
   state.view=view;
-  // update active state
   document.querySelectorAll('[data-view]').forEach(el=>el.classList.toggle('active',el.dataset.view===view));
+  document.getElementById('btn-back').classList.toggle('visible', view!=='overview');
+  closeSidebar();
   renderContent();
+}
+
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('sidebar-overlay').classList.toggle('show');
+}
+
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebar-overlay').classList.remove('show');
 }
 
 function renderContent() {
@@ -828,7 +882,7 @@ function renderTeam(area, team) {
     </div>
     <div class="team-sticker-wrap">
       <!-- Badge + Photo top row -->
-      <div style="display:grid;grid-template-columns:100px 1fr 100px;gap:.65rem;margin-bottom:.75rem;align-items:start">
+      <div class="team-top-row">
         ${stickerSlotHTML(badge)}
         <div style="display:flex;align-items:center;justify-content:center;border:1.5px dashed rgba(255,255,255,.07);border-radius:7px;padding:1.5rem;text-align:center;gap:.75rem;flex-direction:column;height:100%">
           <div style="opacity:.35;border-radius:4px;overflow:hidden">${flagImg(team.fc,56,42)}</div>
