@@ -37,8 +37,15 @@ function json_out(array $data, int $code = 200): void {
 
 // ── Verify Bearer token, return user_id or 401 ───────────────────────────
 function require_auth(): int {
-    $header = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
-    $token  = str_replace('Bearer ', '', $header);
+    // Apache on shared hosting often strips Authorization; check several sources
+    $header = $_SERVER['HTTP_AUTHORIZATION']
+           ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION']
+           ?? '';
+    if (!$header && function_exists('getallheaders')) {
+        $all    = getallheaders();
+        $header = $all['Authorization'] ?? $all['authorization'] ?? '';
+    }
+    $token = str_replace('Bearer ', '', $header);
     if (!$token) json_out(['error' => 'Not authenticated'], 401);
 
     $stmt = db()->prepare(
