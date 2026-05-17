@@ -499,21 +499,26 @@ let state = {
 };
 
 // ═══════════════════════════════════════════════════════════════
-//  AUTH
+//  API CONFIG
 // ═══════════════════════════════════════════════════════════════
 
-function hash(s) {
-  let h=0; for(let i=0;i<s.length;i++){h=Math.imul(31,h)+s.charCodeAt(i)|0} return h.toString(36);
+// Auto-detects the domain — works on localhost and on your hosting
+const API = window.location.origin + '/api';
+
+function getToken() { return localStorage.getItem('panini_token'); }
+
+async function apiCall(endpoint, options = {}) {
+  const token = getToken();
+  const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+  const res = await fetch(`${API}/${endpoint}`, { ...options, headers });
+  const data = await res.json().catch(() => ({}));
+  return { ok: res.ok, status: res.status, data };
 }
 
-function getUsers() { return JSON.parse(localStorage.getItem('panini_users')||'{}'); }
-function saveUsers(u) { localStorage.setItem('panini_users',JSON.stringify(u)); }
-function loadCollection(username) {
-  return new Set(JSON.parse(localStorage.getItem(`panini_col_${username}`)||'[]'));
-}
-function persistCollection() {
-  localStorage.setItem(`panini_col_${state.user}`, JSON.stringify([...state.collection]));
-}
+// ═══════════════════════════════════════════════════════════════
+//  AUTH
+// ═══════════════════════════════════════════════════════════════
 
 function switchTab(tab) {
   document.querySelectorAll('.tab-btn').forEach((b,i)=>b.classList.toggle('active',i===(tab==='login'?0:1)));
@@ -526,44 +531,47 @@ function setMsg(id, msg, isErr=true) {
   el.textContent=msg; el.className='auth-msg '+(isErr?'error':'success');
 }
 
-function doLogin() {
+async function doLogin() {
   const u=document.getElementById('login-user').value.trim();
   const p=document.getElementById('login-pass').value;
   if(!u||!p){setMsg('login-msg','Please fill all fields.');return;}
-  const users=getUsers();
-  if(!users[u]){setMsg('login-msg','User not found.');return;}
-  if(users[u].password!==hash(p)){setMsg('login-msg','Wrong password.');return;}
-  state.user=u;
-  state.collection=loadCollection(u);
-  localStorage.setItem('panini_current',u);
+  setMsg('login-msg','Signing in…',false);
+  const {ok,data}=await apiCall('login.php',{method:'POST',body:JSON.stringify({username:u,password:p})});
+  if(!ok){setMsg('login-msg',data.error||'Login failed.');return;}
+  localStorage.setItem('panini_token',data.token);
+  localStorage.setItem('panini_user',data.username);
+  state.user=data.username;
+  state.collection=new Set();
   document.getElementById('auth-screen').style.display='none';
   document.getElementById('app-screen').style.display='block';
+  showLoading(true);
+  await loadCollectionFromDB();
+  showLoading(false);
   bootApp();
 }
 
-function doRegister() {
+async function doRegister() {
   const u=document.getElementById('reg-user').value.trim();
   const e=document.getElementById('reg-email').value.trim();
   const p=document.getElementById('reg-pass').value;
   if(!u||!e||!p){setMsg('reg-msg','Please fill all fields.');return;}
-  if(u.length<3){setMsg('reg-msg','Username must be 3+ characters.');return;}
-  if(p.length<6){setMsg('reg-msg','Password must be 6+ characters.');return;}
-  const users=getUsers();
-  if(users[u]){setMsg('reg-msg','Username already taken.');return;}
-  users[u]={password:hash(p),email:e,created:Date.now()};
-  saveUsers(users);
+  setMsg('reg-msg','Creating account…',false);
+  const {ok,data}=await apiCall('register.php',{method:'POST',body:JSON.stringify({username:u,email:e,password:p})});
+  if(!ok){setMsg('reg-msg',data.error||'Registration failed.');return;}
   setMsg('reg-msg','Account created! Logging in…',false);
   setTimeout(()=>{
     document.getElementById('login-user').value=u;
     document.getElementById('login-pass').value=p;
     switchTab('login');
     doLogin();
-  },800);
+  },700);
 }
 
-function doLogout() {
+async function doLogout() {
+  await apiCall('logout.php',{method:'POST'}).catch(()=>{});
+  localStorage.removeItem('panini_token');
+  localStorage.removeItem('panini_user');
   state.user=null; state.collection=new Set(); state.view='overview';
-  localStorage.removeItem('panini_current');
   document.getElementById('auth-screen').style.display='flex';
   document.getElementById('app-screen').style.display='none';
 }
@@ -572,29 +580,68 @@ function doLogout() {
 //  COLLECTION
 // ═══════════════════════════════════════════════════════════════
 
-function toggleSticker(id) {
-  if(state.collection.has(id)) state.collection.delete(id);
-  else state.collection.add(id);
-  persistCollection();
-  // update slot
-  const slot=document.querySelector(`[data-sid="${id}"]`);
-  if(slot) slot.classList.toggle('collected', state.collection.has(id));
-  updateProgress();
-  showToast(state.collection.has(id)? `✦ ${id} added!` : `${id} removed`, state.collection.has(id));
+function showLoading(visible) {
+  let overlay = document.getElementById('loading-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'loading-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:9999;';
+    overlay.innerHTML = '<div style="width:48px;height:48px;border:4px solid rgba(255,255,255,.2);border-top-color:#D4AF37;border-radius:50%;animation:spin 0.7s linear infinite"></div>';
+    document.body.appendChild(overlay);
+  }
+  overlay.style.display = visible ? 'flex' : 'none';
 }
 
-function toggleMarkAll() {
+async function loadCollectionFromDB() {
+  const { ok, data } = await apiCall('collection.php');
+  if (ok) state.collection = new Set(data.stickers);
+}
+
+async function toggleSticker(id) {
+  const wasCollected = state.collection.has(id);
+  if (wasCollected) state.collection.delete(id); else state.collection.add(id);
+  const slot = document.querySelector(`[data-sid="${id}"]`);
+  if (slot) slot.classList.toggle('collected', state.collection.has(id));
+  updateProgress();
+  showToast(state.collection.has(id) ? `✦ ${id} added!` : `${id} removed`, state.collection.has(id));
+  const { ok } = await apiCall('collection.php', {
+    method: 'POST',
+    body: JSON.stringify({ sticker_id: id, action: 'toggle' })
+  });
+  if (!ok) {
+    // rollback
+    if (wasCollected) state.collection.add(id); else state.collection.delete(id);
+    if (slot) slot.classList.toggle('collected', state.collection.has(id));
+    updateProgress();
+    showToast('Error — changes not saved', false);
+  }
+}
+
+async function toggleMarkAll() {
   const ids = getCurrentSectionIds();
-  const allHave = ids.every(id=>state.collection.has(id));
-  ids.forEach(id=>{ if(allHave) state.collection.delete(id); else state.collection.add(id); });
-  persistCollection();
-  // refresh all slots
-  ids.forEach(id=>{
-    const slot=document.querySelector(`[data-sid="${id}"]`);
-    if(slot) slot.classList.toggle('collected',state.collection.has(id));
+  const allHave = ids.every(id => state.collection.has(id));
+  const action = allHave ? 'batch_remove' : 'batch_add';
+  ids.forEach(id => { if (allHave) state.collection.delete(id); else state.collection.add(id); });
+  ids.forEach(id => {
+    const slot = document.querySelector(`[data-sid="${id}"]`);
+    if (slot) slot.classList.toggle('collected', state.collection.has(id));
   });
   updateProgress();
-  showToast(allHave?'All stickers removed':'All stickers marked!',!allHave);
+  showToast(allHave ? 'All stickers removed' : 'All stickers marked!', !allHave);
+  const { ok } = await apiCall('collection.php', {
+    method: 'POST',
+    body: JSON.stringify({ action, sticker_ids: ids })
+  });
+  if (!ok) {
+    // rollback
+    ids.forEach(id => { if (allHave) state.collection.add(id); else state.collection.delete(id); });
+    ids.forEach(id => {
+      const slot = document.querySelector(`[data-sid="${id}"]`);
+      if (slot) slot.classList.toggle('collected', state.collection.has(id));
+    });
+    updateProgress();
+    showToast('Error — changes not saved', false);
+  }
 }
 
 function getCurrentSectionIds() {
@@ -862,20 +909,21 @@ function showToast(msg, isGold=false) {
 //  INIT
 // ═══════════════════════════════════════════════════════════════
 
-(function init() {
-  const saved=localStorage.getItem('panini_current');
-  if(saved) {
-    const users=getUsers();
-    if(users[saved]) {
-      state.user=saved;
-      state.collection=loadCollection(saved);
-      document.getElementById('auth-screen').style.display='none';
-      document.getElementById('app-screen').style.display='block';
-      bootApp();
-      return;
-    }
+(async function init() {
+  const token = getToken();
+  const user  = localStorage.getItem('panini_user');
+  if (token && user) {
+    state.user = user;
+    state.collection = new Set();
+    document.getElementById('auth-screen').style.display = 'none';
+    document.getElementById('app-screen').style.display  = 'block';
+    showLoading(true);
+    await loadCollectionFromDB();
+    showLoading(false);
+    bootApp();
+    return;
   }
-  document.getElementById('auth-screen').style.display='flex';
+  document.getElementById('auth-screen').style.display = 'flex';
 })();
 
 // Enter key support on auth forms
