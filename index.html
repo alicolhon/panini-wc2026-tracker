@@ -177,6 +177,35 @@ body{font-family:'Barlow',sans-serif;background:var(--bg-deep);color:var(--text-
 /* ─── SPECIAL SECTIONS ─────────────────────────────── */
 .special-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:.75rem}
 
+/* ─── DUPLICATE BADGE on sticker slots ──────────────── */
+.s-qty-badge{position:absolute;top:3px;right:4px;background:#dc2626;color:#fff;font-family:'Barlow Condensed',sans-serif;font-size:.58rem;font-weight:800;padding:1px 4px;border-radius:3px;line-height:1.4;z-index:2;letter-spacing:.02em;display:none}
+.sticker-slot.duplicate{border-color:#f97316 !important;box-shadow:0 0 0 1px rgba(249,115,22,.18),0 4px 20px rgba(249,115,22,.18) !important}
+.sticker-slot.duplicate .s-qty-badge{display:block}
+.sticker-slot.duplicate .s-label{color:#f97316;opacity:.9}
+.sticker-slot.duplicate .s-num{color:#f97316;opacity:.7}
+
+/* ─── DUPLICATES DASHBOARD ───────────────────────────── */
+.dup-section{margin-bottom:2rem}
+.dup-section-hdr{display:flex;align-items:center;gap:.65rem;margin-bottom:.8rem;padding-bottom:.65rem;border-bottom:1px solid var(--border)}
+.dup-section-flag{font-size:1.1rem;flex-shrink:0}
+.dup-section-name{font-family:'Bebas Neue',sans-serif;font-size:1.25rem;letter-spacing:.08em;flex:1}
+.dup-section-badge{font-size:.62rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);background:var(--bg-elevated);border:1px solid var(--border);border-radius:4px;padding:.18rem .5rem;white-space:nowrap}
+.dup-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:.7rem}
+.dup-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:.9rem .75rem .65rem;display:flex;flex-direction:column;align-items:center;gap:.2rem;position:relative;transition:all .15s}
+.dup-card:hover{border-color:#f97316;box-shadow:0 4px 20px rgba(249,115,22,.1)}
+.dup-card-qty{position:absolute;top:7px;right:8px;background:#dc2626;color:#fff;font-family:'Barlow Condensed',sans-serif;font-size:.72rem;font-weight:800;padding:2px 6px;border-radius:4px;line-height:1.3}
+.dup-card-icon{font-size:1.6rem;line-height:1;margin-bottom:.15rem}
+.dup-card-label{font-size:.72rem;font-weight:600;text-align:center;color:var(--text-primary);line-height:1.3;word-break:break-word;max-width:100%}
+.dup-card-id{font-family:'Barlow Condensed',sans-serif;font-size:.62rem;font-weight:700;color:var(--text-muted);letter-spacing:.06em;margin-top:.1rem}
+.dup-card-btns{display:flex;gap:.3rem;margin-top:.4rem}
+.dup-btn{width:28px;height:28px;border-radius:5px;border:1px solid var(--border);background:var(--bg-elevated);color:var(--text-secondary);font-size:1rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .12s;line-height:1;padding:0}
+.dup-btn:hover{border-color:var(--gold);color:var(--gold)}
+.dup-minus:hover{border-color:#ef4444 !important;color:#ef4444 !important}
+.dup-empty{text-align:center;padding:5rem 2rem;color:var(--text-muted)}
+.dup-empty-icon{font-size:3.5rem;margin-bottom:1rem;opacity:.3;display:block}
+.dup-empty-title{font-family:'Bebas Neue',sans-serif;font-size:1.8rem;letter-spacing:.1em;margin-bottom:.5rem;color:var(--text-secondary)}
+.dup-empty-hint{font-size:.82rem;line-height:1.7}
+
 /* ─── TOAST ─────────────────────────────────────────── */
 .toast{position:fixed;bottom:1.5rem;right:1.5rem;background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;padding:.7rem 1.25rem;font-size:.83rem;color:var(--text-primary);box-shadow:0 8px 32px rgba(0,0,0,.4);z-index:999;transform:translateY(8px);opacity:0;transition:all .25s cubic-bezier(.4,0,.2,1);pointer-events:none;font-family:'Barlow Condensed',sans-serif;font-weight:600;letter-spacing:.04em}
 .toast.show{transform:translateY(0);opacity:1}
@@ -232,6 +261,8 @@ body{font-family:'Barlow',sans-serif;background:var(--bg-deep);color:var(--text-
   .team-top-row{grid-template-columns:76px 1fr 76px;gap:.4rem}
   /* toast above browser UI */
   .toast{bottom:4rem;right:.9rem;left:.9rem;text-align:center}
+  /* dup grid tighter */
+  .dup-grid{grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:.5rem}
 }
 </style>
 </head>
@@ -537,8 +568,8 @@ TEAMS.forEach(t=>buildTeamStickers(t).forEach(s=>ALL_STICKER_IDS.push(s.id)));
 
 let state = {
   user: null,
-  collection: {},  // set of sticker IDs
-  view: 'overview' // 'overview' | section id | team id
+  collection: new Map(), // sticker_id → quantity
+  view: 'overview'
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -584,7 +615,7 @@ async function doLogin() {
   localStorage.setItem('panini_token',data.token);
   localStorage.setItem('panini_user',data.username);
   state.user=data.username;
-  state.collection=new Set();
+  state.collection=new Map();
   document.getElementById('auth-screen').style.display='none';
   document.getElementById('app-screen').style.display='block';
   showLoading(true);
@@ -614,7 +645,7 @@ async function doLogout() {
   await apiCall('logout.php',{method:'POST'}).catch(()=>{});
   localStorage.removeItem('panini_token');
   localStorage.removeItem('panini_user');
-  state.user=null; state.collection=new Set(); state.view='overview';
+  state.user=null; state.collection=new Map(); state.view='overview';
   document.getElementById('auth-screen').style.display='flex';
   document.getElementById('app-screen').style.display='none';
 }
@@ -637,70 +668,119 @@ function showLoading(visible) {
 
 async function loadCollectionFromDB() {
   const { ok, data } = await apiCall('collection.php');
-  if (ok) state.collection = new Set(data.stickers);
+  if (ok) state.collection = new Map(Object.entries(data.stickers));
 }
 
-async function toggleSticker(id) {
-  const wasCollected = state.collection.has(id);
-  if (wasCollected) state.collection.delete(id); else state.collection.add(id);
+// ── Helpers ──────────────────────────────────────────────────────────────
+function getQty(id)      { return state.collection.get(id) || 0; }
+function isCollected(id) { return getQty(id) >= 1; }
+
+function updateSlotUI(id) {
+  const qty  = getQty(id);
   const slot = document.querySelector(`[data-sid="${id}"]`);
-  if (slot) slot.classList.toggle('collected', state.collection.has(id));
+  if (slot) {
+    slot.classList.toggle('collected', qty >= 1);
+    slot.classList.toggle('duplicate', qty >= 2);
+    const badge = slot.querySelector('.s-qty-badge');
+    if (badge) { badge.textContent = qty >= 2 ? `×${qty}` : ''; badge.style.display = qty >= 2 ? '' : 'none'; }
+  }
+  // Refresh duplicates dashboard if it's open
+  if (state.view === 'duplicates') renderDuplicates(document.getElementById('content-area'));
+}
+
+// ── Long-press support (mobile decrement) ─────────────────────────────────
+let lpTimer = null, lpActive = false;
+function lpStart(id) {
+  lpActive = false;
+  lpTimer = setTimeout(() => {
+    lpActive = true;
+    decrementSticker(id);
+    if (navigator.vibrate) navigator.vibrate(35);
+  }, 500);
+}
+function lpEnd(e) {
+  clearTimeout(lpTimer); lpTimer = null;
+  if (lpActive) e.preventDefault(); // block the click that follows touchend
+}
+
+// ── Increment (click/tap) ─────────────────────────────────────────────────
+async function clickSticker(id) {
+  if (lpActive) { lpActive = false; return; } // was a long-press — skip
+  const prevQty = getQty(id);
+  const newQty  = prevQty + 1;
+  state.collection.set(id, newQty);
+  updateSlotUI(id);
   updateProgress();
-  showToast(state.collection.has(id) ? `✦ ${id} added!` : `${id} removed`, state.collection.has(id));
+  showToast(newQty === 1 ? `✦ ${id} collected!` : `×${newQty} — duplicate logged`, newQty === 1);
   const { ok } = await apiCall('collection.php', {
     method: 'POST',
-    body: JSON.stringify({ sticker_id: id, action: 'toggle' })
+    body: JSON.stringify({ sticker_id: id, action: 'increment' })
   });
   if (!ok) {
-    // rollback
-    if (wasCollected) state.collection.add(id); else state.collection.delete(id);
-    if (slot) slot.classList.toggle('collected', state.collection.has(id));
-    updateProgress();
-    showToast('Error — changes not saved', false);
+    if (prevQty === 0) state.collection.delete(id); else state.collection.set(id, prevQty);
+    updateSlotUI(id); updateProgress();
+    showToast('Error — change not saved', false);
   }
 }
 
+// ── Decrement (right-click / long-press) ──────────────────────────────────
+async function decrementSticker(id) {
+  const prevQty = getQty(id);
+  if (prevQty === 0) return;
+  const newQty = prevQty - 1;
+  if (newQty === 0) state.collection.delete(id); else state.collection.set(id, newQty);
+  updateSlotUI(id);
+  updateProgress();
+  showToast(newQty === 0 ? `${id} removed` : `×${newQty} — one removed`, newQty > 0);
+  const { ok } = await apiCall('collection.php', {
+    method: 'POST',
+    body: JSON.stringify({ sticker_id: id, action: 'decrement' })
+  });
+  if (!ok) {
+    state.collection.set(id, prevQty);
+    updateSlotUI(id); updateProgress();
+    showToast('Error — change not saved', false);
+  }
+}
+
+// ── Mark all in current section ───────────────────────────────────────────
 async function toggleMarkAll() {
   const ids = getCurrentSectionIds();
-  const allHave = ids.every(id => state.collection.has(id));
-  const action = allHave ? 'batch_remove' : 'batch_add';
-  ids.forEach(id => { if (allHave) state.collection.delete(id); else state.collection.add(id); });
-  ids.forEach(id => {
-    const slot = document.querySelector(`[data-sid="${id}"]`);
-    if (slot) slot.classList.toggle('collected', state.collection.has(id));
-  });
+  const allCollected = ids.every(id => isCollected(id));
+  const action = allCollected ? 'batch_remove' : 'batch_add';
+  const snapshot = new Map(state.collection);
+  if (allCollected) {
+    ids.forEach(id => state.collection.delete(id));
+  } else {
+    ids.forEach(id => { if (!isCollected(id)) state.collection.set(id, 1); });
+  }
+  ids.forEach(id => updateSlotUI(id));
   updateProgress();
-  showToast(allHave ? 'All stickers removed' : 'All stickers marked!', !allHave);
+  showToast(allCollected ? 'All stickers removed' : 'All stickers marked!', !allCollected);
   const { ok } = await apiCall('collection.php', {
     method: 'POST',
     body: JSON.stringify({ action, sticker_ids: ids })
   });
   if (!ok) {
-    // rollback
-    ids.forEach(id => { if (allHave) state.collection.add(id); else state.collection.delete(id); });
-    ids.forEach(id => {
-      const slot = document.querySelector(`[data-sid="${id}"]`);
-      if (slot) slot.classList.toggle('collected', state.collection.has(id));
-    });
+    state.collection = snapshot;
+    ids.forEach(id => updateSlotUI(id));
     updateProgress();
     showToast('Error — changes not saved', false);
   }
 }
 
 function getCurrentSectionIds() {
-  const v=state.view;
-  const special=SPECIAL_SECTIONS.find(s=>s.id===v);
-  if(special) return special.stickers.map(s=>s.id);
-  const team=TEAMS.find(t=>t.id===v);
-  if(team) return buildTeamStickers(team).map(s=>s.id);
-  // overview: all
-  if(v==='overview') return ALL_STICKER_IDS;
+  const v = state.view;
+  if (v === 'duplicates') return [];
+  const special = SPECIAL_SECTIONS.find(s => s.id === v);
+  if (special) return special.stickers.map(s => s.id);
+  const team = TEAMS.find(t => t.id === v);
+  if (team) return buildTeamStickers(team).map(s => s.id);
+  if (v === 'overview') return ALL_STICKER_IDS;
   return [];
 }
 
-function getCount(ids) {
-  return ids.filter(id=>state.collection.has(id)).length;
-}
+function getCount(ids) { return ids.filter(id => isCollected(id)).length; }
 
 // ═══════════════════════════════════════════════════════════════
 //  UI
@@ -728,6 +808,12 @@ function buildSidebar() {
       <span class="nav-count" id="nc-${s.id}">${getCount(ids)}/${ids.length}</span>
     </div>`;
   });
+  const dupCount=[...state.collection.values()].filter(v=>v>=2).length;
+  html+=`<div class="nav-special-item" data-view="duplicates" onclick="navigate('duplicates')" style="margin-top:.2rem;border-top:1px solid var(--border);padding-top:.5rem">
+    <span class="nav-flag" style="font-size:.9rem">🔄</span>
+    <span class="nav-label">Duplicates</span>
+    <span class="nav-count" id="nc-duplicates" style="${dupCount>0?'color:#f97316':''}">${dupCount>0?dupCount:'—'}</span>
+  </div>`;
   html+=`</div>`;
 
   // Teams by confederation
@@ -779,11 +865,18 @@ function closeSidebar() {
 function renderContent() {
   const v=state.view;
   const area=document.getElementById('content-area');
+  const markAllBtn=document.getElementById('mark-all-btn');
 
   if(v==='overview') {
+    markAllBtn.style.display='';
     renderOverview(area);
     setHeader('🌍','My Album','FIFA WORLD CUP 2026');
+  } else if(v==='duplicates') {
+    markAllBtn.style.display='none';
+    renderDuplicates(area);
+    setHeader('🔄','Duplicates','STICKERS TO TRADE');
   } else {
+    markAllBtn.style.display='';
     const special=SPECIAL_SECTIONS.find(s=>s.id===v);
     if(special) { renderSpecial(area, special); setHeader(special.flag, special.name, special.subtitle); }
     else {
@@ -906,12 +999,91 @@ function renderTeam(area, team) {
   pills.innerHTML=`<div class="pill"><span>${n}</span>/20 collected</div><div class="pill" style="color:var(--gold)">${team.confName}</div>`;
 }
 
+function getStickerMeta(id) {
+  for(const sec of SPECIAL_SECTIONS) {
+    const s=sec.stickers.find(st=>st.id===id);
+    if(s) return {sticker:s, section:sec};
+  }
+  const prefix=id.split('-')[0];
+  const team=TEAMS.find(t=>t.code===prefix);
+  if(team) { const sticker=buildTeamStickers(team).find(s=>s.id===id); return {sticker,team}; }
+  return null;
+}
+
+function renderDuplicates(area) {
+  const dupEntries=[...state.collection.entries()].filter(([,qty])=>qty>=2);
+  const pills=document.getElementById('hdr-pills');
+
+  if(dupEntries.length===0) {
+    area.innerHTML=`<div class="dup-empty">
+      <span class="dup-empty-icon">🔄</span>
+      <div class="dup-empty-title">No Duplicates Yet</div>
+      <div class="dup-empty-hint">Tap a sticker you already have to add a duplicate.<br>Right-click or long-press a sticker to remove one copy.</div>
+    </div>`;
+    pills.innerHTML='';
+    return;
+  }
+
+  // Group by team / section
+  const groups={};
+  for(const [id,qty] of dupEntries) {
+    const meta=getStickerMeta(id);
+    if(!meta) continue;
+    const key=meta.team?meta.team.id:(meta.section?meta.section.id:'other');
+    if(!groups[key]) {
+      groups[key]={
+        label: meta.team?meta.team.name:meta.section.name,
+        flag:  meta.team?flagImg(meta.team.fc,28,20):meta.section.flag,
+        items: []
+      };
+    }
+    groups[key].items.push({id,qty,sticker:meta.sticker||{}});
+  }
+
+  const sortedGroups=Object.values(groups).sort((a,b)=>b.items.length-a.items.length);
+  const totalExtra=dupEntries.reduce((s,[,q])=>s+q-1,0);
+
+  let html='';
+  for(const g of sortedGroups) {
+    const groupExtra=g.items.reduce((s,{qty})=>s+qty-1,0);
+    html+=`<div class="dup-section">
+      <div class="dup-section-hdr">
+        <span class="dup-section-flag">${g.flag}</span>
+        <span class="dup-section-name">${g.label}</span>
+        <span class="dup-section-badge">${g.items.length} types · ${groupExtra} extra${groupExtra!==1?'s':''}</span>
+      </div>
+      <div class="dup-grid">
+        ${g.items.map(({id,qty,sticker})=>`
+          <div class="dup-card">
+            <div class="dup-card-qty">×${qty}</div>
+            <div class="dup-card-icon">${sticker.icon||'⚽'}</div>
+            <div class="dup-card-label">${sticker.label||id}</div>
+            <div class="dup-card-id">${id}</div>
+            <div class="dup-card-btns">
+              <button class="dup-btn dup-minus" onclick="decrementSticker('${id}')" title="Remove one copy">−</button>
+              <button class="dup-btn" onclick="clickSticker('${id}')" title="Add one copy">+</button>
+            </div>
+          </div>`).join('')}
+      </div>
+    </div>`;
+  }
+  area.innerHTML=html;
+  pills.innerHTML=`<div class="pill"><span>${dupEntries.length}</span> sticker types</div><div class="pill">Extras: <span>${totalExtra}</span></div>`;
+}
+
 function stickerSlotHTML(s) {
-  const collected=state.collection.has(s.id);
-  const cls=`sticker-slot${collected?' collected':''}${s.foil?' foil':''}`;
+  const qty=getQty(s.id);
+  const cls=`sticker-slot${qty>=1?' collected':''}${s.foil?' foil':''}${qty>=2?' duplicate':''}`;
   const labelCls=s.type==='player'?'s-label player-name':'s-label badge-label';
-  return `<div class="${cls}" data-sid="${s.id}" onclick="toggleSticker('${s.id}')" title="${s.label} (${s.id})">
+  return `<div class="${cls}" data-sid="${s.id}"
+    onclick="clickSticker('${s.id}')"
+    oncontextmenu="decrementSticker('${s.id}');return false;"
+    ontouchstart="lpStart('${s.id}')"
+    ontouchend="lpEnd(event)"
+    ontouchmove="lpEnd(event)"
+    title="${s.label} (${s.id}) — tap to add · hold/right-click to remove">
     <span class="s-num">${s.id}</span>
+    <span class="s-qty-badge" style="${qty>=2?'':'display:none'}">${qty>=2?`×${qty}`:''}</span>
     ${s.foil?'<span class="s-foil">✦</span>':''}
     <span class="s-icon">${s.icon}</span>
     <span class="${labelCls}">${s.label}</span>
@@ -920,33 +1092,50 @@ function stickerSlotHTML(s) {
 
 function updateProgress() {
   const v=state.view;
-  let ids, total;
-  if(v==='overview') { ids=ALL_STICKER_IDS; }
-  else {
-    const special=SPECIAL_SECTIONS.find(s=>s.id===v);
-    ids = special ? special.stickers.map(s=>s.id) : buildTeamStickers(TEAMS.find(t=>t.id===v)||{}).map(s=>s.id);
-  }
-  total=ids.length; const have=getCount(ids);
-  const pct=total?Math.round(have/total*100):0;
-  document.getElementById('section-fill').style.width=pct+'%';
-  document.getElementById('section-pct').textContent=pct+'%';
 
-  // global
+  // Section bar
+  if(v==='duplicates') {
+    const dupCount=[...state.collection.values()].filter(q=>q>=2).length;
+    const totalExtra=[...state.collection.values()].reduce((s,q)=>s+(q>1?q-1:0),0);
+    document.getElementById('section-fill').style.width='0%';
+    document.getElementById('section-pct').textContent=`${dupCount} types`;
+  } else {
+    let ids;
+    if(v==='overview') { ids=ALL_STICKER_IDS; }
+    else {
+      const special=SPECIAL_SECTIONS.find(s=>s.id===v);
+      ids=special?special.stickers.map(s=>s.id):buildTeamStickers(TEAMS.find(t=>t.id===v)||{}).map(s=>s.id);
+    }
+    const total=ids.length; const have=getCount(ids);
+    const pct=total?Math.round(have/total*100):0;
+    document.getElementById('section-fill').style.width=pct+'%';
+    document.getElementById('section-pct').textContent=pct+'%';
+  }
+
+  // Global sidebar bar
   const gTotal=ALL_STICKER_IDS.length;
   const gHave=getCount(ALL_STICKER_IDS);
   const gPct=Math.round(gHave/gTotal*100);
   document.getElementById('global-fill').style.width=gPct+'%';
   document.getElementById('global-pct').textContent=gPct+'%';
 
-  // update nav counts
+  // Nav counts — special sections
   SPECIAL_SECTIONS.forEach(s=>{
     const el=document.getElementById(`nc-${s.id}`);
     if(el) { const ids=s.stickers.map(x=>x.id); el.textContent=`${getCount(ids)}/${ids.length}`; }
   });
+  // Nav counts — teams
   TEAMS.forEach(team=>{
     const el=document.getElementById(`nc-${team.id}`);
     if(el) { const ids=buildTeamStickers(team).map(s=>s.id); el.textContent=`${getCount(ids)}/20`; }
   });
+  // Nav count — duplicates
+  const dupEl=document.getElementById('nc-duplicates');
+  if(dupEl) {
+    const cnt=[...state.collection.values()].filter(q=>q>=2).length;
+    dupEl.textContent=cnt>0?cnt:'—';
+    dupEl.style.color=cnt>0?'#f97316':'';
+  }
 }
 
 // ─── TOAST ───────────────────────────────────────────────────
@@ -968,7 +1157,7 @@ function showToast(msg, isGold=false) {
   const user  = localStorage.getItem('panini_user');
   if (token && user) {
     state.user = user;
-    state.collection = new Set();
+    state.collection = new Map();
     document.getElementById('auth-screen').style.display = 'none';
     document.getElementById('app-screen').style.display  = 'block';
     showLoading(true);
