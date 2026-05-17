@@ -1,0 +1,11 @@
+node_modules/
+temporary screenshots/
+screenshot.mjs
+screenshot-app.mjs
+package.json
+package-lock.json
+SORO.pdf
+soro-website/
+.claude/
+CLAUDE.md
+*.zip
