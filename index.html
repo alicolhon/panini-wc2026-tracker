@@ -712,14 +712,14 @@ async function clickSticker(id) {
   updateSlotUI(id);
   updateProgress();
   showToast(newQty === 1 ? `✦ ${id} collected!` : `×${newQty} — duplicate logged`, newQty === 1);
-  const { ok } = await apiCall('collection.php', {
+  const res = await apiCall('collection.php', {
     method: 'POST',
     body: JSON.stringify({ sticker_id: id, action: 'increment' })
   });
-  if (!ok) {
+  if (!res.ok) {
     if (prevQty === 0) state.collection.delete(id); else state.collection.set(id, prevQty);
     updateSlotUI(id); updateProgress();
-    showToast('Error — change not saved', false);
+    showToast(`Error: ${res.data?.error || 'change not saved'}`, false);
   }
 }
 
@@ -732,14 +732,14 @@ async function decrementSticker(id) {
   updateSlotUI(id);
   updateProgress();
   showToast(newQty === 0 ? `${id} removed` : `×${newQty} — one removed`, newQty > 0);
-  const { ok } = await apiCall('collection.php', {
+  const res = await apiCall('collection.php', {
     method: 'POST',
     body: JSON.stringify({ sticker_id: id, action: 'decrement' })
   });
-  if (!ok) {
+  if (!res.ok) {
     state.collection.set(id, prevQty);
     updateSlotUI(id); updateProgress();
-    showToast('Error — change not saved', false);
+    showToast(`Error: ${res.data?.error || 'change not saved'}`, false);
   }
 }
 

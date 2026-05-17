@@ -60,24 +60,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($action === 'increment') {
-        db()->prepare(
-            'INSERT INTO collections (user_id, sticker_id, quantity) VALUES (?, ?, 1)
-             ON DUPLICATE KEY UPDATE quantity = quantity + 1'
-        )->execute([$user_id, $sticker_id]);
-        $q = db()->prepare('SELECT quantity FROM collections WHERE user_id = ? AND sticker_id = ?');
-        $q->execute([$user_id, $sticker_id]);
-        json_out(['sticker_id' => $sticker_id, 'quantity' => (int)$q->fetchColumn()]);
+        try {
+            db()->prepare(
+                'INSERT INTO collections (user_id, sticker_id, quantity) VALUES (?, ?, 1)
+                 ON DUPLICATE KEY UPDATE quantity = quantity + 1'
+            )->execute([$user_id, $sticker_id]);
+            $q = db()->prepare('SELECT quantity FROM collections WHERE user_id = ? AND sticker_id = ?');
+            $q->execute([$user_id, $sticker_id]);
+            json_out(['sticker_id' => $sticker_id, 'quantity' => (int)$q->fetchColumn()]);
+        } catch (PDOException $e) {
+            json_out(['error' => $e->getMessage()], 500);
+        }
     }
 
     if ($action === 'decrement') {
-        db()->prepare(
-            'UPDATE collections SET quantity = quantity - 1
-             WHERE user_id = ? AND sticker_id = ? AND quantity > 0'
-        )->execute([$user_id, $sticker_id]);
-        db()->prepare(
-            'DELETE FROM collections WHERE user_id = ? AND sticker_id = ? AND quantity = 0'
-        )->execute([$user_id, $sticker_id]);
-        json_out(['sticker_id' => $sticker_id, 'success' => true]);
+        try {
+            db()->prepare(
+                'UPDATE collections SET quantity = quantity - 1
+                 WHERE user_id = ? AND sticker_id = ? AND quantity > 0'
+            )->execute([$user_id, $sticker_id]);
+            db()->prepare(
+                'DELETE FROM collections WHERE user_id = ? AND sticker_id = ? AND quantity = 0'
+            )->execute([$user_id, $sticker_id]);
+            json_out(['sticker_id' => $sticker_id, 'success' => true]);
+        } catch (PDOException $e) {
+            json_out(['error' => $e->getMessage()], 500);
+        }
     }
 }
 
